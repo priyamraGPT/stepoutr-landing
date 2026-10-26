@@ -1,0 +1,434 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script>document.documentElement.classList.add('js');</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>StepOutr — the interesting way, not the fastest one</title>
+<meta name="description" content="StepOutr builds a walking, running or cycling route past real nearby places — cafés, parks, landmarks — and you collect each stop by actually being there. No accounts, no scoreboard, runs stay on your phone.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bone:#FAF8F4;
+    --paper:#FFFFFF;
+    --sand:#F1EDE6;
+    --clay:#E3DDD2;
+    --stone:#C8C0B3;
+    --slate:#8A8378;
+    --graphite:#5C564D;
+    --ink:#22201C;
+    --moss:#2F7D4F;
+    --moss-bright:#3A9A62;
+    --moss-deep:#245F3C;
+    --moss-wash:#EAF3ED;
+    --shadow-sm: 0 2px 8px rgba(58,52,43,.07);
+    --shadow-lg: 0 24px 60px -12px rgba(25,45,33,.35);
+    --ease: cubic-bezier(.16,1,.3,1);
+  }
+  *{box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--bone);
+    color:var(--ink);
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+    -webkit-font-smoothing:antialiased;
+    line-height:1.5;
+    overflow-x:hidden;
+  }
+  img{max-width:100%;display:block;}
+  button,input{font-family:inherit;}
+  a{color:inherit;}
+  .wrap{max-width:1120px;margin:0 auto;padding:0 28px;}
+  .sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);}
+
+  /* ── Reveal-on-scroll ─────────────────────────────────────────────────
+     Content is fully visible by default. The fade-up is an enhancement that
+     only applies once .js confirms the script ran — so no JS, a blocked
+     script, a crawler, or a tool that never fires scroll/intersection events
+     (a screen reader, a "print page", a one-shot screenshot) still sees every
+     section, instead of content stuck at opacity:0 forever. */
+  .js .reveal{opacity:0;transform:translateY(22px);transition:opacity .7s var(--ease),transform .7s var(--ease);}
+  .js .reveal.in{opacity:1;transform:none;}
+  @media (prefers-reduced-motion:reduce){
+    html{scroll-behavior:auto;}
+    .js .reveal{opacity:1;transform:none;transition:none;}
+  }
+
+  /* ── Nav ──────────────────────────────────────────────────────────── */
+  nav.top{
+    position:sticky;top:0;z-index:20;background:rgba(250,248,244,.86);backdrop-filter:blur(10px);
+    border-bottom:1px solid transparent;transition:border-color .3s,box-shadow .3s;
+  }
+  nav.top.scrolled{border-color:var(--clay);box-shadow:0 1px 0 rgba(0,0,0,.02);}
+  nav.top .wrap{display:flex;align-items:center;gap:28px;height:68px;}
+  .brand{display:flex;align-items:center;gap:8px;font-size:16px;font-weight:700;letter-spacing:-.2px;flex:none;}
+  .brand svg{display:block;}
+  .navlinks{display:flex;gap:26px;flex:1;}
+  .navlinks a{font-size:14px;font-weight:500;color:var(--graphite);text-decoration:none;transition:color .2s;}
+  .navlinks a:hover{color:var(--ink);}
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    font-weight:600;text-decoration:none;border:none;cursor:pointer;
+    border-radius:999px;transition:transform .2s var(--ease),box-shadow .2s var(--ease),background .2s;
+  }
+  .btn:active{transform:scale(.97);}
+  .btn-primary{background:var(--moss);color:var(--paper);padding:10px 18px;font-size:14px;box-shadow:var(--shadow-sm);}
+  .btn-primary:hover{background:var(--moss-deep);box-shadow:0 6px 16px rgba(47,125,79,.3);transform:translateY(-1px);}
+  /* Default ring reads against a light page; inside the green hero (the only
+     dark background a focusable element sits on) it switches to white so it
+     stays visible against the gradient instead of vanishing into it. */
+  .btn:focus-visible{outline:2px solid var(--moss-deep);outline-offset:3px;}
+  .hero .btn:focus-visible{outline-color:var(--paper);}
+  .navlinks a:focus-visible{outline:2px solid var(--moss-deep);outline-offset:3px;border-radius:4px;}
+  .access-form input:focus-visible{outline:2px solid var(--moss-deep);outline-offset:2px;}
+  .hero .access-form input:focus-visible{outline-color:var(--paper);}
+  .btn-hero{background:var(--paper);color:var(--moss-deep);padding:15px 22px;font-size:15.5px;box-shadow:0 10px 30px -8px rgba(0,0,0,.35);}
+  .btn-hero:hover{transform:translateY(-2px);box-shadow:0 14px 34px -8px rgba(0,0,0,.4);}
+
+  /* ── Hero ─────────────────────────────────────────────────────────────
+     Side by side, not stacked: the whole point is that the phone — the one
+     thing that proves this is a real app — is in the first view, at a size
+     you can actually read, without scrolling past a wall of text to find it. */
+  .hero{
+    position:relative;overflow:hidden;
+    background:linear-gradient(135deg,var(--moss-bright),var(--moss-deep) 72%);
+    padding:clamp(20px,4vw,40px) 0;
+    color:var(--paper);
+  }
+  .motif{position:absolute;inset:0;width:100%;height:100%;opacity:.9;pointer-events:none;}
+  .hero .wrap{
+    position:relative;display:grid;grid-template-columns:1.05fr 0.95fr;gap:40px;align-items:center;
+  }
+  .kicker{
+    display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;letter-spacing:.2px;
+    background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.22);color:#EFFAF3;
+    border-radius:999px;padding:7px 14px;margin-bottom:20px;
+  }
+  .kicker::before{content:"";width:6px;height:6px;border-radius:999px;background:#9FE8B8;}
+  .hero h1{
+    font-size:clamp(32px,4.4vw,46px);line-height:1.06;letter-spacing:-1.3px;font-weight:800;
+    margin:0 0 16px;
+  }
+  .hero p.lede{
+    font-size:clamp(15px,1.6vw,17px);line-height:1.55;color:#DCEFE3;margin:0 0 26px;max-width:42ch;
+  }
+  .access-form{display:flex;gap:10px;max-width:420px;}
+  .access-form input{
+    flex:1;min-width:0;border:1px solid rgba(255,255,255,.3);background:rgba(255,255,255,.1);
+    color:var(--paper);border-radius:999px;padding:13px 18px;font-size:15px;outline:none;
+    transition:border-color .2s,background .2s;
+  }
+  .access-form input::placeholder{color:#CBE8D6;}
+  .access-form input:focus{border-color:#fff;background:rgba(255,255,255,.16);}
+  .microcopy{font-size:12.5px;color:#BFE0CC;margin:14px 0 0;}
+  .hero-shot-wrap{display:flex;justify-content:center;}
+  .hero-shot{
+    /* The screenshot already has DeviceFrame's real rounded corners baked in
+       (55px at the native 393px width) — this radius is set to match that
+       curve at whatever width the image displays, not a decorative value, so
+       the mask lines up with the image's own edge instead of leaving a seam. */
+    width:min(276px,78vw);border-radius:40px;overflow:hidden;box-shadow:var(--shadow-lg);
+    border:1px solid rgba(255,255,255,.25);
+  }
+
+  /* ── Sections ─────────────────────────────────────────────────────── */
+  section{padding:clamp(56px,7.5vw,88px) 0;}
+  .eyebrow{
+    font-size:12px;font-weight:700;letter-spacing:.6px;text-transform:uppercase;
+    color:var(--moss-deep);margin:0 0 12px;
+  }
+  h2{font-size:clamp(26px,3.6vw,36px);line-height:1.15;letter-spacing:-.8px;margin:0 0 14px;font-weight:800;}
+  .section-intro{max-width:640px;margin:0 auto 52px;text-align:center;}
+  .section-intro p{font-size:16.5px;color:var(--graphite);margin:0;}
+
+  /* How it works */
+  .steps{display:grid;grid-template-columns:repeat(3,1fr);gap:40px;max-width:980px;margin:0 auto;}
+  .step{text-align:left;}
+  .step .icon{
+    width:46px;height:46px;border-radius:14px;background:var(--moss-wash);
+    display:flex;align-items:center;justify-content:center;margin-bottom:18px;
+  }
+  .step h3{font-size:17px;margin:0 0 7px;letter-spacing:-.2px;font-weight:700;}
+  .step p{font-size:14.5px;color:var(--graphite);margin:0;line-height:1.55;}
+
+  /* The route-honesty claim: same card rhythm as .steps above it (icon-sized
+     tag, bold line, one-liner) rather than a thin inline footnote — this is
+     one of the more genuinely different things about the product, not a
+     detail to bury under the mechanics. */
+  .kinds-intro{max-width:640px;margin:56px auto 24px;padding-top:40px;border-top:1px solid var(--clay);text-align:center;}
+  .kinds-intro p{font-size:14.5px;color:var(--graphite);margin:8px 0 0;}
+  .kinds{display:grid;grid-template-columns:repeat(3,1fr);gap:40px;max-width:980px;margin:0 auto;}
+  .kind{text-align:left;}
+  .kind .tag{
+    display:inline-block;font-size:11px;font-weight:700;letter-spacing:.3px;
+    color:var(--graphite);background:var(--sand);border-radius:999px;padding:5px 11px;margin-bottom:14px;
+  }
+  .kind .tag.map{color:var(--moss-deep);background:var(--moss-wash);}
+  .kind h3{font-size:16px;margin:0 0 6px;letter-spacing:-.1px;font-weight:700;}
+  .kind p{font-size:14px;color:var(--graphite);margin:0;line-height:1.5;}
+
+  /* Proof */
+  .proof{background:var(--paper);}
+  /* start, not center: the image is taller than the copy, and centering them
+     left a large dead gap above and below the text for no reason. */
+  .proof-grid{display:grid;grid-template-columns:1fr 1fr;gap:64px;align-items:start;max-width:1020px;margin:0 auto;}
+  .proof-shot{
+    /* Matches the real device-frame corner curve at this display width — see
+       .hero-shot. margin-top nudges it level with the copy now both start
+       at the top of the row instead of being centred against each other. */
+    margin-top:6px;border-radius:40px;overflow:hidden;box-shadow:0 30px 70px -24px rgba(34,32,28,.28);
+    border:1px solid var(--clay);justify-self:center;max-width:272px;
+  }
+  .proof-copy h2{margin-bottom:16px;}
+  .proof-copy p{font-size:15.5px;color:var(--graphite);line-height:1.6;margin:0 0 22px;max-width:40ch;}
+  .fact-list{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:14px;}
+  .fact-list li{display:flex;gap:11px;font-size:14.5px;color:var(--graphite);line-height:1.5;}
+  .fact-list svg{flex:none;margin-top:2px;}
+  .fact-list strong{color:var(--ink);}
+
+  /* CTA band */
+  .cta-band{background:var(--moss-wash);text-align:center;}
+  .cta-band .wrap{max-width:560px;}
+  .cta-band h2{margin-bottom:12px;}
+  .cta-band p{font-size:15.5px;color:var(--graphite);margin:0 0 32px;}
+  .cta-band .access-form input{
+    border:1px solid var(--clay);background:var(--paper);color:var(--ink);
+  }
+  .cta-band .access-form input::placeholder{color:var(--slate);}
+  .cta-band .access-form input:focus{border-color:var(--moss);}
+  .cta-band .btn-hero{background:var(--moss);color:var(--paper);box-shadow:0 10px 26px -8px rgba(47,125,79,.5);}
+  .cta-band .btn-hero:hover{background:var(--moss-deep);}
+  .cta-band .microcopy{color:var(--slate);}
+
+  /* Footer */
+  footer{padding:36px 0;}
+  footer .wrap{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:14px;}
+  .foot-brand{display:flex;align-items:center;gap:8px;font-size:14px;font-weight:700;color:var(--graphite);}
+  footer p.fine{font-size:12.5px;color:var(--slate);margin:0;max-width:60ch;}
+
+  /* The hero collapses a little earlier than the rest — two columns of real
+     content get cramped before 760px does. */
+  @media (max-width:880px){
+    .hero .wrap{grid-template-columns:1fr;text-align:center;justify-items:center;gap:28px;}
+    .hero p.lede{max-width:48ch;}
+    .access-form{justify-content:center;}
+    .hero-shot{width:min(230px,70vw);}
+  }
+  @media (max-width:760px){
+    .navlinks{display:none;}
+    .steps{grid-template-columns:1fr;gap:32px;}
+    .proof-grid{grid-template-columns:1fr;gap:36px;}
+    .proof-shot{order:-1;}
+    .access-form{flex-direction:column;}
+    .kinds{grid-template-columns:1fr;gap:28px;}
+    footer .wrap{flex-direction:column;align-items:flex-start;}
+  }
+</style>
+</head>
+<body>
+
+<nav class="top" id="nav">
+  <div class="wrap">
+    <div class="brand">
+      <svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M5.5 18.5 C4 13 9 11.5 12.5 12.5 C16.5 13.6 20.5 11 18.5 5.5" fill="none" stroke="#2F7D4F" stroke-width="2.6" stroke-linecap="round"/>
+        <circle cx="5.5" cy="18.5" r="2.9" fill="#2F7D4F"/>
+        <circle cx="18.5" cy="5.5" r="2.6" fill="#FFFFFF" stroke="#2F7D4F" stroke-width="2.4"/>
+      </svg>
+      StepOutr
+    </div>
+    <div class="navlinks">
+      <a href="#how">How it works</a>
+      <a href="#proof">What's real</a>
+    </div>
+    <a class="btn btn-primary" href="#join">Get early access</a>
+  </div>
+</nav>
+
+<header class="hero">
+  <svg class="motif" viewBox="0 0 800 620" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+    <path d="M120 430 C 20 330, 70 140, 260 110 S 620 85, 630 230 S 500 470, 340 440 S 160 410, 120 430"
+      stroke="rgba(255,255,255,.14)" stroke-width="14" stroke-linecap="round" fill="none"/>
+    <circle cx="260" cy="110" r="13" fill="rgba(255,255,255,.18)"/>
+    <circle cx="630" cy="230" r="13" fill="rgba(255,255,255,.18)"/>
+    <circle cx="340" cy="440" r="13" fill="rgba(255,255,255,.18)"/>
+    <circle cx="120" cy="430" r="17" fill="rgba(255,255,255,.22)"/>
+  </svg>
+
+  <div class="wrap">
+    <div>
+      <span class="kicker">Early access · Bengaluru first</span>
+      <h1>The interesting way,<br>not the fastest one.</h1>
+      <p class="lede">Maps optimise for arrival. StepOutr optimises for the route — a walk, run or ride built around real places nearby, with a handful of stops you reach by actually being there.</p>
+
+      <form class="access-form" id="join" data-mailto action="mailto:priyam.rajput98@gmail.com" method="post" enctype="text/plain">
+        <label class="sr-only" for="email-hero">Email</label>
+        <input id="email-hero" type="email" placeholder="you@email.com" autocomplete="email" required>
+        <button type="submit" class="btn btn-hero">Get early access</button>
+      </form>
+      <p class="microcopy">Opens an email to the person building it — no account, no spam.</p>
+    </div>
+
+    <div class="hero-shot-wrap reveal">
+      <div class="hero-shot"><img src="img/home.png" alt="StepOutr home screen after a few weeks of running: a saved 5 km route, 4 runs and 18.5 km logged, and badges — two earned, one 9 of 10 stops away" loading="lazy"></div>
+    </div>
+  </div>
+</header>
+
+<section id="how">
+  <div class="wrap">
+    <div class="section-intro reveal">
+      <p class="eyebrow">How it works</p>
+      <h2>Three steps. No form to fill in.</h2>
+    </div>
+    <div class="steps">
+      <div class="step reveal">
+        <div class="icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2F7D4F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6l6-3 6 3 6-3v15l-6 3-6-3-6 3V6z"/><path d="M9 3v15M15 6v15"/></svg>
+        </div>
+        <h3>Pick a distance</h3>
+        <p>Tap 2, 5 or 10 km. It routes you past places worth passing.</p>
+      </div>
+      <div class="step reveal">
+        <div class="icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2F7D4F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 6-9 12-9 12S3 16 3 10a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        </div>
+        <h3>Check in at each stop</h3>
+        <p>GPS confirms it when you arrive. Skipping one is fine — a change of plan, never a failure.</p>
+      </div>
+      <div class="step reveal">
+        <div class="icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#2F7D4F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>
+        </div>
+        <h3>Stays on your phone</h3>
+        <p>No account needed to start. Routes, runs and badges live on your device.</p>
+      </div>
+    </div>
+
+    <div class="kinds-intro reveal">
+      <p class="eyebrow" style="margin:0;">Every route says where it came from</p>
+      <p>Most apps show you a route and let you assume it's been checked. StepOutr labels every one with exactly how sure it is — right on the screen, every time.</p>
+    </div>
+    <div class="kinds">
+      <div class="kind reveal">
+        <span class="tag map">From the map</span>
+        <h3>Generated</h3>
+        <p>Real OpenStreetMap places, picked fresh each time.</p>
+      </div>
+      <div class="kind reveal">
+        <span class="tag">Yours</span>
+        <h3>Recorded or imported</h3>
+        <p>What you ran and kept, or imported from Strava — stays on your phone.</p>
+      </div>
+      <div class="kind reveal">
+        <span class="tag">Curated</span>
+        <h3>Walked by a named runner</h3>
+        <p>None are live yet — earned only once a person has actually run it.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="proof" class="proof">
+  <div class="wrap">
+    <div class="proof-grid">
+      <div class="proof-copy reveal">
+        <p class="eyebrow">What you can trust</p>
+        <h2>Real facts. Nothing invented.</h2>
+        <p>A stop's line comes from what the map actually says about it, or it's left blank — no invented hours, no filler. The street path is a real routing engine, not a straight line between dots.</p>
+        <ul class="fact-list">
+          <li>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#2F7D4F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 10-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 000-7.78z"/></svg>
+            <span><strong>Stop photos</strong> come from Wikimedia Commons, credit and licence shown.</span>
+          </li>
+          <li>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#2F7D4F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>
+            <span><strong>Your runs never leave your device.</strong> No account needed to start.</span>
+          </li>
+          <li>
+            <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#2F7D4F" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5l3 2"/></svg>
+            <span><strong>No feed, no followers, no leaderboard.</strong> Pace is hidden unless you tap for it.</span>
+          </li>
+        </ul>
+      </div>
+      <div class="proof-shot reveal"><img src="img/preview.png" alt="A generated route preview: Museum and Sampangi Tank loop, 4.63 km, 4 stops, labelled From the map, with a real stop and its hours" loading="lazy"></div>
+    </div>
+  </div>
+</section>
+
+<section class="cta-band">
+  <div class="wrap reveal">
+    <p class="eyebrow">Testing now, Bengaluru first</p>
+    <h2>Be one of the first to run it.</h2>
+    <p>Not on the Play Store yet — one open item left on the release checklist. Leave your email and you'll hear the moment it is.</p>
+    <form class="access-form" data-mailto action="mailto:priyam.rajput98@gmail.com" method="post" enctype="text/plain">
+      <label class="sr-only" for="email-cta">Email</label>
+      <input id="email-cta" type="email" placeholder="you@email.com" autocomplete="email" required>
+      <button type="submit" class="btn btn-hero">Join the list</button>
+    </form>
+    <p class="microcopy">Or write straight in: <a href="mailto:priyam.rajput98@gmail.com" style="color:var(--moss-deep);font-weight:600;">priyam.rajput98@gmail.com</a></p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-brand">
+      <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M5.5 18.5 C4 13 9 11.5 12.5 12.5 C16.5 13.6 20.5 11 18.5 5.5" fill="none" stroke="#2F7D4F" stroke-width="2.6" stroke-linecap="round"/>
+        <circle cx="5.5" cy="18.5" r="2.9" fill="#2F7D4F"/>
+        <circle cx="18.5" cy="5.5" r="2.6" fill="#FFFFFF" stroke="#2F7D4F" stroke-width="2.4"/>
+      </svg>
+      StepOutr
+    </div>
+    <p class="fine">Early build, shared for testing. Stops are real places from OpenStreetMap; nobody has checked gates, hours or access yet. © 2026 StepOutr.</p>
+  </div>
+</footer>
+
+<script>
+  // Nav shadow once the page has scrolled past the hero's top edge.
+  const nav = document.getElementById('nav');
+  addEventListener('scroll', () => nav.classList.toggle('scrolled', scrollY > 8), { passive: true });
+
+  // Reveal-on-scroll: fade/slide each marked block up once, the first time
+  // it's visible. Only ever makes something MORE visible, never less — the
+  // .js CSS rule that hides these pre-reveal is the one thing allowed to do
+  // that, and only once this script has actually started running.
+  const revealEls = document.querySelectorAll('.reveal');
+  if ('IntersectionObserver' in window) {
+    const io = new IntersectionObserver((entries) => {
+      for (const e of entries) {
+        if (e.isIntersecting) { e.target.classList.add('in'); io.unobserve(e.target); }
+      }
+    }, { threshold: 0.12 });
+    revealEls.forEach((el) => io.observe(el));
+    // Belt and braces: if an element is somehow never flagged intersecting
+    // (an odd layout, a paused tab, a bug in some browser), show it anyway
+    // after a few seconds rather than leave it invisible indefinitely.
+    setTimeout(() => revealEls.forEach((el) => el.classList.add('in')), 4000);
+  } else {
+    revealEls.forEach((el) => el.classList.add('in'));
+  }
+
+  // Every "join" form opens a real email, addressed and with the typed
+  // address in the body, rather than pretending to post somewhere that
+  // doesn't exist. No backend, nothing to be dishonest about.
+  document.querySelectorAll('[data-mailto]').forEach((form) => {
+    const btn = form.querySelector('button');
+    const label = btn.textContent;
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      const email = form.querySelector('input').value.trim();
+      const body = email ? `Let me know when StepOutr's ready — ${email}` : "Let me know when StepOutr's ready.";
+      location.href = `mailto:priyam.rajput98@gmail.com?subject=${encodeURIComponent('StepOutr early access')}&body=${encodeURIComponent(body)}`;
+      btn.textContent = 'Check your email app ✓';
+      setTimeout(() => { btn.textContent = label; }, 3000);
+    });
+  });
+</script>
+
+</body>
+</html>
